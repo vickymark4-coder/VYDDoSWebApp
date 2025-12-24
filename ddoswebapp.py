@@ -7,31 +7,31 @@ from pathlib import Path
 import plotly.express as px
 
 # -----------------------
-# Configuration
+# OneDrive Model Config
 # -----------------------
 MODEL_PATH = Path("bestmodel.pkl")
-# OneDrive direct download link (converted to download format)
+# Replace this with your OneDrive direct download link
 MODEL_URL = "https://nileuniversityedung-my.sharepoint.com/:u:/g/personal/242220003_nileuniversity_edu_ng/IQAMHZ9Q6qxkT6okCdyPblloARhbisvYocVQY4fE5L21Ibo?download=1"
 
 # -----------------------
-# Download and load model
+# Download & Load Model
 # -----------------------
 @st.cache_resource(show_spinner=True)
 def download_and_load_model():
     if not MODEL_PATH.exists():
         with st.spinner("Downloading ML model from OneDrive..."):
-            response = requests.get(MODEL_URL, stream=True)
-            response.raise_for_status()
+            r = requests.get(MODEL_URL, stream=True)
+            r.raise_for_status()
             with open(MODEL_PATH, "wb") as f:
-                for chunk in response.iter_content(chunk_size=8192):
+                for chunk in r.iter_content(8192):
                     f.write(chunk)
-
     bundle = joblib.load(MODEL_PATH)
     model = bundle["model"]
     scaler = bundle.get("scaler")
-    selected_features = bundle["selected_features"]
+    selected_features = bundle.get("selected_features")
     return model, scaler, selected_features
 
+# Load the model
 model, scaler, selected_features = download_and_load_model()
 
 # -----------------------
@@ -40,17 +40,12 @@ model, scaler, selected_features = download_and_load_model()
 st.title("Victor Yusuf DDoS Web App")
 st.write("Upload one or more CSV files for batch prediction.")
 
-# -----------------------
-# File uploader
-# -----------------------
 uploaded_files = st.file_uploader(
-    "Upload CSV file(s)",
-    type="csv",
-    accept_multiple_files=True
+    "Upload CSV file(s)", type="csv", accept_multiple_files=True
 )
 
 # -----------------------
-# Prediction function
+# Prediction Function
 # -----------------------
 def predict_csv(df):
     cols = selected_features or df.select_dtypes(include="number").columns.tolist()
@@ -64,7 +59,7 @@ def predict_csv(df):
     return df
 
 # -----------------------
-# Process uploaded files
+# Process Uploaded Files
 # -----------------------
 if uploaded_files:
     results = []
@@ -82,15 +77,14 @@ if uploaded_files:
 
     if results:
         final_df = pd.concat(results, ignore_index=True)
-        st.success("Prediction completed!")
 
-        # Highlight rows with high probability
+        # Highlight high probability rows in red
         st.dataframe(final_df.style.apply(
-            lambda x: ['background-color: red' if (x.name == "probability" and v > 0.8) else '' for v in x],
-            axis=0
+            lambda x: ['background-color: red' if v > 0.8 else '' for v in x]
+            if x.name == "probability" else [''] * len(x), axis=0
         ))
 
-        # Interactive Plotly chart
+        # Plot interactive Plotly chart
         fig = px.bar(
             final_df,
             x="prediction",
@@ -102,7 +96,7 @@ if uploaded_files:
         )
         st.plotly_chart(fig, use_container_width=True)
 
-        # Download button
+        # Download results
         st.download_button(
             "Download results",
             final_df.to_csv(index=False).encode(),
